@@ -1,0 +1,30 @@
+name: Windows-RDP-Localtunnel
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Setup RDP
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        
+    - name: 2. Create User
+      run: |
+        $user = "runneradmin"
+        $pass = "MyPassword@123"
+        if (!(Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
+            net user $user $pass /add
+            net localgroup administrators $user /add
+        } else {
+            net user $user $pass
+        }
+
+    - name: 3. Connect via Localtunnel
+      shell: cmd
+      run: |
+        npm install -g localtunnel
+        lt --port 3389
