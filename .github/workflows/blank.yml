@@ -1,0 +1,55 @@
+name: Windows-RDP-Ultimate
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Setup RDP Environment
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        
+    - name: 2. Create Login User
+      run: |
+        $user = "runneradmin"
+        $pass = "MyPassword@123"
+        if (!(Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
+            net user $user $pass /add
+            net localgroup administrators $user /add
+        } else {
+            net user $user $pass
+        }
+
+    - name: 3. Install Tunneling Tools
+      run: |
+        Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+        Expand-Archive ngrok.zip
+
+    - name: 4. Start RDP Connection (Ngrok + Localhost.run)
+      run: |
+        # Ngrok start කිරීම (Asia Region එකෙන්)
+        ./ngrok/ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+        Start-Process ./ngrok/ngrok.exe -ArgumentList "tcp --region ap 3389"
+        
+        # Backup එකක් විදිහට Localhost.run පාවිච්චි කිරීම (SSH හරහා)
+        Write-Host "Wait for connections to initialize..."
+        Start-Sleep -Seconds 20
+
+    - name: 5. Display Connection IP
+      run: |
+        Write-Host "--- CHECK YOUR NGROK DASHBOARD FOR IP ---"
+        Write-Host "URL: https://dashboard.ngrok.com/cloud-edge/endpoints"
+        Write-Host "--- LOGIN DETAILS ---"
+        Write-Host "Username: runneradmin"
+        Write-Host "Password: MyPassword@123"
+        
+        # Loop එකක් මගින් RDP එක පැය 6ක් තබා ගැනීම
+        $n = 360
+        while($n -gt 0) {
+          Write-Host "RDP Active... ($n minutes left)"
+          Start-Sleep -Seconds 60
+          $n -= 1
+        }
