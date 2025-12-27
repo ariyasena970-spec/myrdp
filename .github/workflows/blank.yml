@@ -1,0 +1,35 @@
+name: Windows-RDP-Localtunnel-Final
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Setup RDP
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        
+    - name: 2. Create User
+      run: |
+        $user = "runneradmin"
+        $pass = "MyPassword@123"
+        if (!(Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
+            net user $user $pass /add
+            net localgroup administrators $user /add
+        }
+
+    - name: 3. Start Localtunnel
+      shell: cmd
+      run: |
+        npm install -g localtunnel
+        echo Starting Tunnel...
+        start /b lt --port 3389 > tunnel_log.txt 2>&1
+        timeout /t 15
+        type tunnel_log.txt
+        echo --------------------------------------
+        echo Keep this running to stay connected.
+        # මෙතන පැය 6ක් tunnel එක open එකේ තියාගන්නවා
+        powershell -Command "Start-Sleep -Seconds 21600"
