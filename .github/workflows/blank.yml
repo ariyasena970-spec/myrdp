@@ -1,0 +1,20 @@
+name: RDP-Direct-IP-Fix
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Setup RDP
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        net user runneradmin MyPassword@123 /add
+        net localgroup administrators runneradmin /add
+        
+    - name: 2. Start Tunnel
+      shell: cmd
+      run: |
+        echo "PLEASE WAIT... GENERATING LINK"
+        curl -sL https://raw.githubusercontent.com/tmate-io/tmate.sh/master/tmate.sh | bash
+        # මේක තමයි ලේසිම ක්‍රමය, මේකේ ලින්ක් එක පහළ වැටෙයි
+        ssh -o StrictHostKeyChecking=no -R 80:localhost:3389 serveo.net
