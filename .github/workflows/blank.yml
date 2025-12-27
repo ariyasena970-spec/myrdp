@@ -1,0 +1,48 @@
+name: Windows-RDP-Final-Fix
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Setup RDP
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        
+    - name: 2. Create User (Safe Method)
+      run: |
+        # User ඉන්නවද කියලා බලලා නැත්නම් විතරක් හදන ක්‍රමය
+        $Username = "runneradmin"
+        $Password = ConvertTo-SecureString "MyPassword@123" -AsPlainText -Force
+        if (!(Get-LocalUser -Name $Username -ErrorAction SilentlyContinue)) {
+            New-LocalUser -Name $Username -Password $Password -Description "RDP User"
+            Add-LocalGroupMember -Group "Administrators" -Member $Username
+            Write-Host "User created successfully."
+        } else {
+            Write-Host "User already exists. Skipping..."
+        }
+
+    - name: 3. Start Cloudflare Tunnel
+      run: |
+        # Ngrok වලට වඩා මේක ලේසියි
+        Invoke-WebRequest https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi -OutFile cf.msi
+        Start-Process msiexec.exe -ArgumentList "/i cf.msi /quiet" -Wait
+        # Cloudflare Tunnel එක background එකේ run කරනවා
+        Start-Process cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389"
+
+    - name: 4. Display Info & Keep Alive
+      run: |
+        Write-Host "--- RDP LOGIN DETAILS ---"
+        Write-Host "Username: runneradmin"
+        Write-Host "Password: MyPassword@123"
+        Write-Host "Check your Ngrok or Cloudflare dashboard for the address."
+        # පැය 6ක් active එකේ තියාගන්න
+        $n = 360
+        while($n -gt 0) {
+            Write-Host "RDP is running... Remaining: $n minutes"
+            Start-Sleep -Seconds 60
+            $n--
+        }
