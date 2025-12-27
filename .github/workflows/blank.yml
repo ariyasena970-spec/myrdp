@@ -1,0 +1,29 @@
+name: Windows-RDP-Serveo
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Setup RDP
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        
+    - name: 2. Create User
+      run: |
+        $Username = "runneradmin"
+        $Password = ConvertTo-SecureString "MyPassword@123" -AsPlainText -Force
+        if (!(Get-LocalUser -Name $Username -ErrorAction SilentlyContinue)) {
+            New-LocalUser -Name $Username -Password $Password
+            Add-LocalGroupMember -Group "Administrators" -Member $Username
+        }
+
+    - name: 3. Connect via Serveo
+      shell: cmd
+      run: |
+        echo Access your RDP at:
+        ssh -o StrictHostKeyChecking=no -R 80:localhost:3389 serveo.net
+        
