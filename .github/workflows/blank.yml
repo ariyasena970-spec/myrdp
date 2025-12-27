@@ -1,0 +1,16 @@
+name: RDP-Final-Fix-No-Errors
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Enable RDP
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+    - name: 2. Start Tunnel (Wait for Link)
+      shell: cmd
+      run: |
+        echo Access your RDP via Serveo...
+        ssh -o StrictHostKeyChecking=no -R 80:localhost:3389 serveo.net
