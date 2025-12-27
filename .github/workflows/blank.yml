@@ -1,0 +1,47 @@
+name: Windows-RDP-SuperFix
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Setup Environment
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        
+    - name: 2. Setup User (Ignoring Errors)
+      run: |
+        # මෙතන '|| ver > nul' දැම්මේ කලින් account එක තිබුණත් error එකක් නොපෙන්වා ඉස්සරහට යන්න
+        net user runneradmin MyPassword@123 /add || ver > nul
+        net localgroup administrators runneradmin /add || ver > nul
+
+    - name: 3. Start Tunnel
+      run: |
+        # Cloudflare Tunnel එක download කරලා background එකේ run කරනවා
+        Invoke-WebRequest https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi -OutFile cf.msi
+        Start-Process msiexec.exe -ArgumentList "/i cf.msi /quiet" -Wait
+        Start-Process cloudflared.exe -ArgumentList "tunnel --url tcp://localhost:3389"
+        
+        # Ngrok එකත් backup එකක් විදියට run කරනවා (Secret එක තියෙනවා නම් විතරයි)
+        Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+        Expand-Archive ngrok.zip
+        if ("${{ secrets.NGROK_AUTH_TOKEN }}" -ne "") {
+            ./ngrok/ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+            Start-Process ./ngrok/ngrok.exe -ArgumentList "tcp --region ap 3389"
+        }
+
+    - name: 4. Final Verification Loop
+      run: |
+        Write-Host "--- RDP LOGIN ---"
+        Write-Host "User: runneradmin"
+        Write-Host "Pass: MyPassword@123"
+        Write-Host "Check Ngrok Dashboard for IP: https://dashboard.ngrok.com/cloud-edge/endpoints"
+        $n = 360
+        while($n -gt 0) {
+          Write-Host "RDP Active... ($n mins left)"
+          Start-Sleep -Seconds 60
+          $n -= 1
+        }
