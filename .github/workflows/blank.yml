@@ -1,0 +1,48 @@
+name: Windows-RDP-Fresh-Start
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: 1. Setup Environment
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+    
+    - name: 2. Create User Profile
+      run: |
+        # කලින් user හිටියොත් error එකක් එන්නේ නැති වෙන්න මේ විදියට හදමු
+        $user = "runneradmin"
+        $pass = "MyPassword@123"
+        if (!(Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
+            net user $user $pass /add
+            net localgroup administrators $user /add
+            Write-Host "User created successfully."
+        } else {
+            net user $user $pass
+            Write-Host "User already exists, password updated."
+        }
+
+    - name: 3. Download and Run Ngrok
+      run: |
+        Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+        Expand-Archive ngrok.zip
+        ./ngrok/ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+        Start-Process ./ngrok/ngrok.exe -ArgumentList "tcp 3389"
+
+    - name: 4. Final Verification
+      run: |
+        Write-Host "--- RDP DETAILS ---"
+        Write-Host "Username: runneradmin"
+        Write-Host "Password: MyPassword@123"
+        Write-Host "Go to https://dashboard.ngrok.com/cloud-edge/endpoints to get your IP"
+        Write-Host "-------------------"
+        $n = 360
+        while($n -gt 0) {
+          Write-Host "Keeping connection alive... ($n mins left)"
+          Start-Sleep -Seconds 60
+          $n -= 1
+        }
